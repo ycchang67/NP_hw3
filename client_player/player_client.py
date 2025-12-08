@@ -9,7 +9,7 @@ import shutil
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.protocol import send_json, recv_json, recv_file
 
-HOST = 'linux2.cs.nycu.edu.tw'
+HOST = 'linux3.cs.nycu.edu.tw'
 PORT = 12131
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')

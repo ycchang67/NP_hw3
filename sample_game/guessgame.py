@@ -13,7 +13,7 @@ except ImportError:
     print("Error: Cannot find 'common.protocol'.")
     sys.exit(1)
 
-HOST = 'linux2.cs.nycu.edu.tw'
+HOST = 'linux3.cs.nycu.edu.tw'
 PORT = 12131
 
 class GuessGame:

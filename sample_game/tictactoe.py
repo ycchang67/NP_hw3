@@ -10,7 +10,7 @@ except ImportError:
     sys.path.append('../')
     from common.protocol import send_json, recv_json
 
-HOST = 'linux2.cs.nycu.edu.tw'
+HOST = 'linux3.cs.nycu.edu.tw'
 PORT = 12131
 
 COLORS = {
