@@ -116,7 +116,7 @@ class PlayerApp:
         self.root = root_window
         self.root.title("Game Store - Player")
         self.root.geometry("1000x700")
-        self.root.config(cursor="arrow")
+        self.root.config(cursor="left_ptr")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         self.setup_styles()

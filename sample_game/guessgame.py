@@ -24,7 +24,7 @@ class GuessGame:
         
         self.root.title(f"Ultimate Number - Room {self.room_id}")
         self.root.geometry("500x600")
-        self.root.config(cursor="arrow")
+        self.root.config(cursor="left_ptr")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
     
         self.running = True
