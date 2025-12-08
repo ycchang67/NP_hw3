@@ -352,7 +352,7 @@ class DeveloperApp:
 
                 self.safe_alert("info", "Success", msg)
                 if is_update: 
-                    parent.master.destroy() # Close popup
+                    parent.destroy() # Close popup
                     self.refresh_table(self.content.winfo_children()[1]) # Refresh list if possible
                 else:
                     self.view_my_games()

@@ -50,9 +50,15 @@ GameStore/
 ### 2. 連線設定 
 Server 預設跑在交大資工系計中工作站，若欲更改設定請將每份檔案中的
 ```
-HOST = 'linux2.cs.nycu.edu.tw'
+HOST = 'linux3.cs.nycu.edu.tw'
 PORT = 12131
 ```
+### 3. python venv
+提供虛擬環境測試
+```bash
+make setup
+```
+將會安裝python3-tk 
 
 
 Developer
@@ -60,7 +66,6 @@ Developer
 如果你想上架遊戲供大家遊玩，請依照以下步驟操作。
 ### 1\. 啟動與登入
 ```bash
-cd NP_hw3
 make dev
 # or python3 client_dev/dev_client.py
 ```
@@ -120,18 +125,9 @@ make player
 2.  房主按下 Start 後，所有玩家的遊戲視窗會自動彈出並連線。 
 3.  **遊戲結束後**，你可以回到遊戲詳情頁面，給予 **1-5 星評分** 並留下評論。
 
-# Error Handle
-# 1\. 遇到找不到module
-如看到prompt:
-```bash
-player_client.py", line 10, in <module>
-    from common.protocol import send_json, recv_json, recv_file
-ModuleNotFoundError: No module named 'common.protocol'; 'common' is not a package
-```
-依照下方指令執行
-```bash
-# 設定當前目錄為 Python 搜尋路徑
-export PYTHONPATH=$(pwd)
-# 然後再跑一次
-make player
-```
+Plugin
+---------------
+提供聊天室plugin 讓玩家可以在等待房間中聊天，只有安裝plugin的玩家有功能，沒有安裝的玩家仍可正常遊玩，也可隨時刪除或安裝
+1. 進入**Plugin** 頁面，點擊**Install** 下載Plugin
+2. 進入房間可以send chat
+3. 若不想要plugin，則在進到**Plugin** 頁面，點擊**Uninstall** 下載Plugin

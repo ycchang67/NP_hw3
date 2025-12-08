@@ -23,6 +23,15 @@ database = {
     "play_history": []
 }
 
+available_plugins = [
+    {
+        "id": "room_chat",
+        "name": "Room Chat Plugin",
+        "description": "Enable text chat in game rooms.",
+        "version": "1.0"
+    }
+]
+
 active_rooms = {} 
 active_game_sessions = {} 
 online_users = {}
@@ -406,10 +415,10 @@ def handle_client(client_socket, client_address):
                         "game_name": game_name,
                         "host": current_user,
                         "players": [current_user],
-                        "status": "waiting"
+                        "status": "waiting",
+                        "chat_history": []  # Plugin
                     }
-                
-                send_json(client_socket, {'status': 'success', 'room_id': room_id})
+                    send_json(client_socket, {'status': 'success', 'room_id': room_id})
 
             elif command == 'list_rooms':
                 send_json(client_socket, {'status': 'success', 'data': list(active_rooms.values())})
@@ -427,18 +436,27 @@ def handle_client(client_socket, client_address):
 
             elif command == 'leave_room':
                 room_id = int(request['room_id'])
-                
                 with server_lock:
                     if room_id in active_rooms:
-                        if current_user in active_rooms[room_id]['players']:
-                            active_rooms[room_id]['players'].remove(current_user)
-                        
-                        if not active_rooms[room_id]['players']:
-                            del active_rooms[room_id]
-                        elif active_rooms[room_id]['host'] == current_user:
-                            active_rooms[room_id]['host'] = active_rooms[room_id]['players'][0]
+                        room = active_rooms[room_id]
                 
-                send_json(client_socket, {'status': 'success'})
+                        if current_user in room['players']:
+                            room['players'].remove(current_user)
+                        
+                        if current_user == room['host']:
+                            # if host leave delete room
+                            del active_rooms[room_id]
+                            send_json(client_socket, {'status': 'success'})
+                        
+                        elif len(room['players']) == 0:
+                            # no player 
+                            del active_rooms[room_id]
+                            send_json(client_socket, {'status': 'success'})
+                        
+                        else:
+                            send_json(client_socket, {'status': 'success'})
+                    else:
+                        send_json(client_socket, {'status': 'fail', 'msg': 'Room not found'})
             
             elif command == 'get_room_info':
                 room_id = int(request['room_id'])
@@ -504,6 +522,26 @@ def handle_client(client_socket, client_address):
                     })
                     save_database()
                     send_json(client_socket, {'status': 'success'})
+
+            elif command == 'list_plugins':
+                send_json(client_socket, {'status': 'success', 'data': available_plugins})
+
+            # PL3 : chat handle
+            elif command == 'send_chat':
+                room_id = int(request['room_id'])
+                msg = request['msg']
+                
+                with server_lock:
+                    if room_id in active_rooms:
+                        
+                        chat_entry = f"{current_user}: {msg}"
+                        active_rooms[room_id]['chat_history'].append(chat_entry)
+                        # max len = 50
+                        if len(active_rooms[room_id]['chat_history']) > 50:
+                            active_rooms[room_id]['chat_history'].pop(0)
+                        send_json(client_socket, {'status': 'success'})
+                    else:
+                        send_json(client_socket, {'status': 'fail'})
 
     except Exception as error:
         print(f"[ERR] {client_address}: {error}")

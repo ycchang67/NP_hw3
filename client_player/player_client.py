@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import shutil
+import json
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common.protocol import send_json, recv_json, recv_file
@@ -14,7 +15,7 @@ PORT = 12131
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, 'downloads')
 
-# =====logic code ===================
+# ======logic =============================
 class GameStoreService:
     def __init__(self):
         self.socket = None
@@ -76,15 +77,13 @@ class GameStoreService:
         
         if response and response['status'] == 'success':
             server_version = response['version']
-            
+            os.makedirs(save_path, exist_ok=True)
             game_file_path = os.path.join(save_path, 'game.py')
             version_file_path = os.path.join(save_path, 'version.txt')
-            
-            if recv_file(self.socket, game_file_path):
+            if recv_file(self.socket, game_file_path): 
                 with open(version_file_path, 'w') as f:
                     f.write(str(server_version))
                 return True
-        
         return False
 
     def create_room(self, game_id):
@@ -110,22 +109,37 @@ class GameStoreService:
             'comment': comment
         })
 
-# ===UI ============
+    # Plugin
+    def get_plugins(self):
+        return self._send_command({'command': 'list_plugins'})
+
+    def send_chat(self, room_id, message):
+        return self._send_command({
+            'command': 'send_chat', 
+            'room_id': room_id, 
+            'msg': message
+        })
+
+# =============================================================================
+# [UI Layer] PlayerApp
+# =============================================================================
 class PlayerApp:
     def __init__(self, root_window):
         self.root = root_window
         self.root.title("Game Store - Player")
         self.root.geometry("1000x700")
         self.root.config(cursor="left_ptr")
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+    
         self.setup_styles()
         self.service = GameStoreService()
         self.username = None
         self.room_cache = {}
+        self.installed_plugins = set()
         
         self.init_login_ui()
-
+    
     def setup_styles(self):
         self.style = ttk.Style()
         self.style.theme_use('clam')
@@ -136,11 +150,38 @@ class PlayerApp:
         self.style.map("Nav.TButton", background=[('active', '#1976D2')])
         self.style.configure("Update.TButton", background="#FF9800", foreground="white")
         self.style.map("Update.TButton", background=[('active', '#F57C00')])
+        self.style.configure("Danger.TButton", background="#D32F2F", foreground="white")
 
     def on_close(self):
         self.service.close()
         try: self.root.destroy()
         except: pass
+
+    # --- Plugin Management ---
+    def load_user_plugins(self):
+        self.installed_plugins = set()
+        
+        # path: downloads/{username}/installed_plugins.txt
+        user_dir = os.path.join(DOWNLOAD_DIR, self.username)
+        file_path = os.path.join(user_dir, "installed_plugins.txt")
+        
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, "r") as f:
+                    for line in f:
+                        plugin_id = line.strip()
+                        if plugin_id:
+                            self.installed_plugins.add(plugin_id)
+            except Exception as e:
+                print(f"Error loading plugins: {e}")
+
+    def save_user_plugins(self):
+        user_dir = os.path.join(DOWNLOAD_DIR, self.username)
+        os.makedirs(user_dir, exist_ok=True)
+        file_path = os.path.join(user_dir, "installed_plugins.txt")
+        with open(file_path, "w") as f:
+            for p in self.installed_plugins:
+                f.write(p + "\n")
 
     # --- Login ---
     def init_login_ui(self):
@@ -174,6 +215,8 @@ class PlayerApp:
         resp = self.service.login(self.entry_user.get(), self.entry_pass.get())
         if resp and resp['status'] == 'success':
             self.username = self.entry_user.get()
+            # [Fix] 登入成功後才載入 Plugin
+            self.load_user_plugins()
             self.init_main_ui()
         else:
             msg = resp['msg'] if resp else "Login failed"
@@ -192,7 +235,7 @@ class PlayerApp:
             msg = resp['msg'] if resp else "Register Failed"
             messagebox.showerror("Failed", msg)
         self.service.close()
-    # pure UI ==== page 1 ========
+
     # --- Main Dashboard ---
     def init_main_ui(self):
         for w in self.root.winfo_children(): w.destroy()
@@ -209,16 +252,17 @@ class PlayerApp:
         ttk.Button(btn_frame, text="Store", style="Nav.TButton", command=self.view_store).pack(side="left", padx=2)
         ttk.Button(btn_frame, text="Library", style="Nav.TButton", command=self.view_library).pack(side="left", padx=2)
         ttk.Button(btn_frame, text="Lobby", style="Nav.TButton", command=self.view_lobby).pack(side="left", padx=2)
+        ttk.Button(btn_frame, text="Plugins", style="Nav.TButton", command=self.view_plugins).pack(side="left", padx=2)
 
         self.content = tk.Frame(self.root, bg="#f5f5f5")
         self.content.pack(fill="both", expand=True, padx=20, pady=20)
         
         self.view_store()
-     # clear
+
     def clear_content(self):
         for w in self.content.winfo_children(): w.destroy()
 
-    # --- Store ---
+    # --- View: Store ---
     def view_store(self):
         self.clear_content()
         tk.Label(self.content, text="Game Store", font=("Arial", 20, "bold"), bg="#f5f5f5").pack(anchor="w", pady=10)
@@ -239,7 +283,7 @@ class PlayerApp:
             
             ttk.Button(card, text="Details / Download", command=lambda g=game: self.show_details_window(g)).pack(fill="x")
 
-    # --- Library ---
+    # --- View: Library ---
     def view_library(self):
         self.clear_content()
         tk.Label(self.content, text="My Library", font=("Arial", 20, "bold"), bg="#f5f5f5").pack(anchor="w", pady=10)
@@ -248,7 +292,7 @@ class PlayerApp:
         if not os.path.exists(user_path):
             tk.Label(self.content, text="No games downloaded yet.", bg="#f5f5f5").pack(pady=20)
             return
-        # get list game  ==== return socket
+            
         resp = self.service.get_game_list()
         server_available = True
         server_games = []
@@ -300,7 +344,6 @@ class PlayerApp:
             tk.Label(row, text=name, font=("Arial", 12, "bold"), bg="white", width=20, anchor="w").pack(side="left")
             tk.Label(row, text=f"v{local_ver}", bg="white", width=10).pack(side="left")
             
-            # if not newest => update : create room
             if is_outdated:
                 tk.Label(row, text="(Update Available)", fg="orange", bg="white").pack(side="left", padx=5)
                 ttk.Button(row, text="Update Now", style="Update.TButton", 
@@ -308,7 +351,7 @@ class PlayerApp:
             else:
                 ttk.Button(row, text="Create Room", command=lambda gid=game_id: self.handle_create_room(gid)).pack(side="right")
 
-    # --- Lobby ---
+    # --- View: Lobby ---
     def view_lobby(self):
         self.clear_content()
         head = tk.Frame(self.content, bg="#f5f5f5")
@@ -318,8 +361,7 @@ class PlayerApp:
         
         cols = ("ID", "Game", "Host", "Status")
         tree = ttk.Treeview(self.content, columns=cols, show="headings", height=15)
-        for c in cols: 
-            tree.heading(c, text=c)
+        for c in cols: tree.heading(c, text=c)
         tree.column("ID", width=60, anchor="center")
         tree.column("Status", width=100, anchor="center")
         tree.pack(fill="both", expand=True, pady=10)
@@ -334,11 +376,46 @@ class PlayerApp:
                 self.room_cache[room['id']] = room
                 tree.insert("", "end", values=(room['id'], room['game_name'], room['host'], room['status']))
 
-    # --- Join Room ---
+    # --- View: Plugins ---
+    def view_plugins(self):
+        self.clear_content()
+        tk.Label(self.content, text="Plugin Store", font=("Arial", 20, "bold"), bg="#f5f5f5").pack(anchor="w", pady=10)
+        
+        resp = self.service.get_plugins()
+        plugins = resp.get('data', []) if resp and resp.get('status') == 'success' else []
+        
+        for p in plugins:
+            f = tk.Frame(self.content, bg="white", padx=15, pady=15, relief="raised")
+            f.pack(fill="x", pady=5)
+            
+            tk.Label(f, text=p['name'], font=("bold"), bg="white").pack(side="left")
+            tk.Label(f, text=f" - {p['description']}", bg="white").pack(side="left")
+            
+            pid = p['id']
+            is_installed = pid in self.installed_plugins
+            btn_text = "Uninstall" if is_installed else "Install"
+            btn_style = "Danger.TButton" if is_installed else "Update.TButton" 
+            
+            def toggle(plugin_id=pid):
+                if plugin_id in self.installed_plugins:
+                    self.installed_plugins.remove(plugin_id)
+                    messagebox.showinfo("System", "Plugin uninstalled.")
+                else:
+                    self.installed_plugins.add(plugin_id)
+                    messagebox.showinfo("System", "Plugin installed successfully.")
+                
+                # 存檔
+                self.save_user_plugins()
+                self.view_plugins() # refresh
+                
+            ttk.Button(f, text=btn_text, style=btn_style, command=toggle).pack(side="right")
+
+    # --- Join Room Check ---
     def handle_join_check(self, tree):
         sel = tree.selection()
         if not sel: return
-        room_id = int(tree.item(sel)['values'][0])
+        item = tree.item(sel)['values']
+        room_id = int(item[0])
         
         room_info = self.room_cache.get(room_id)
         if not room_info: return
@@ -349,7 +426,7 @@ class PlayerApp:
         game_path = os.path.join(DOWNLOAD_DIR, self.username, str(game_id))
         version_file = os.path.join(game_path, 'version.txt')
         
-        # download check: not download => force download
+        # 1. Download check
         if not os.path.exists(game_path) or not os.path.exists(version_file):
             ans = messagebox.askyesno("Missing Game", f"Download '{game_name}' to join?")
             if ans:
@@ -357,7 +434,7 @@ class PlayerApp:
                     self.perform_join(room_id)
             return
 
-        # version check: not newest => force update
+        # 2. Version check
         try:
             with open(version_file, 'r') as f:
                 local_ver = int(f.read().strip())
@@ -373,10 +450,9 @@ class PlayerApp:
                     return
         except:
             return
-        # all pass => success join
+            
         self.perform_join(room_id)
     
-    # need to check handle before join room
     def perform_join(self, room_id):
         resp = self.service.join_room(room_id)
         if resp and resp['status'] == 'success':
@@ -420,7 +496,6 @@ class PlayerApp:
 
         ttk.Button(win, text="Download / Update", command=do_download).pack(pady=10)
         
-        # Reviews
         tk.Label(win, text="Reviews:", font=("bold")).pack(anchor="w", padx=20, pady=(20, 5))
         review_frame = tk.Frame(win)
         review_frame.pack(fill="both", expand=True, padx=20)
@@ -434,7 +509,6 @@ class PlayerApp:
                 tk.Label(f, text=f"{r['user']} ({r['rating']}★):", font=("bold")).pack(anchor="w")
                 tk.Label(f, text=r['comment'], wraplength=350, justify="left").pack(anchor="w")
 
-        # Submit Review and review setting
         tk.Label(win, text="Write Review:", font=("bold")).pack(pady=(10,5))
         input_frame = tk.Frame(win)
         input_frame.pack(fill="x", padx=20)
@@ -461,40 +535,92 @@ class PlayerApp:
             
         ttk.Button(win, text="Submit", command=do_review).pack(pady=10)
 
-    # --- Waiting Room ---
+    # --- Waiting Room (with Plugin Support) ---
     def open_waiting_room(self, room_id, game_id, is_host):
+        # [PL3] Check plugin
+        has_chat = "room_chat" in self.installed_plugins
+        win_w = 600 if has_chat else 300
+        
         win = tk.Toplevel(self.root)
         win.title(f"Room {room_id}")
-        win.geometry("300x400")
+        win.geometry(f"{win_w}x400")
         
-        tk.Label(win, text=f"Room {room_id}", font=("Arial", 16, "bold")).pack(pady=10)
-        lbl_status = tk.Label(win, text="Status: Waiting...", fg="blue")
+        # Left Panel (Standard)
+        left_panel = tk.Frame(win)
+        left_panel.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        
+        tk.Label(left_panel, text=f"Room {room_id}", font=("Arial", 16, "bold")).pack(pady=10)
+        lbl_status = tk.Label(left_panel, text="Status: Waiting...", fg="blue")
         lbl_status.pack()
         
-        lst = tk.Listbox(win)
-        lst.pack(fill="both", expand=True, padx=20, pady=10)
+        lst = tk.Listbox(left_panel)
+        lst.pack(fill="both", expand=True, pady=10)
         
-        btn_start = ttk.Button(win, text="Start Game", state="disabled", command=lambda: self.service.start_game(room_id))
-        if is_host: btn_start.pack(pady=5)
+        btn_start = ttk.Button(left_panel, text="Start Game", state="disabled", command=lambda: self.service.start_game(room_id))
+        if is_host: 
+            btn_start.pack(pady=5)
         
         def leave():
             self.service.leave_room(room_id)
             win.destroy()
             self.view_lobby()
+
+        win.protocol("WM_DELETE_WINDOW", leave)
+        ttk.Button(left_panel, text="Leave Room", command=leave).pack(pady=5)
         
-        ttk.Button(win, text="Leave Room", command=leave).pack(pady=5)
-        
+        # Right Panel (Plugin Chat)
+        chat_list = None
+        if has_chat:
+            right_panel = tk.Frame(win, bg="#eee", padx=5, pady=5)
+            right_panel.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+            
+            tk.Label(right_panel, text="Chat Room (Plugin)", bg="#eee", font=("bold")).pack()
+            
+            chat_list = tk.Listbox(right_panel, bg="white", height=15)
+            chat_list.pack(fill="both", expand=True)
+            
+            input_frame = tk.Frame(right_panel)
+            input_frame.pack(fill="x", pady=5)
+            
+            chat_entry = tk.Entry(input_frame)
+            chat_entry.pack(side="left", fill="x", expand=True)
+            
+            def send_msg(event=None):
+                msg = chat_entry.get()
+                if msg:
+                    self.service.send_chat(room_id, msg)
+                    chat_entry.delete(0, 'end')
+            
+            chat_entry.bind("<Return>", send_msg)
+            ttk.Button(input_frame, text="Send", command=send_msg).pack(side="right")
+
         def poll():
             try:
                 resp = self.service.get_room_info(room_id)
+
+                if not resp or resp['status'] != 'success': 
+                    if win.winfo_exists():
+                        messagebox.showwarning("System", "Room closed by host.")
+                        win.destroy()
+                        self.view_lobby() 
+                    return
+
                 if not resp or resp['status'] == 'fail': 
                     win.destroy()
                     return
                 
                 data = resp['data']
                 lbl_status.config(text=f"Status: {data['status']}")
+                
                 lst.delete(0, tk.END)
                 for p in data['players']: lst.insert(tk.END, p)
+                
+                # [PL3] Update Chat
+                if chat_list and 'chat_history' in data:
+                    chat_list.delete(0, tk.END)
+                    for msg in data['chat_history']:
+                        chat_list.insert(tk.END, msg)
+                    chat_list.see(tk.END)
                 
                 if data['status'] == 'playing':
                     win.destroy()
@@ -503,35 +629,61 @@ class PlayerApp:
                 
                 if is_host and len(data['players']) >= 2: 
                     btn_start.config(state="normal")
-            except: pass
-            
-            if win.winfo_exists(): win.after(1000, poll)
+            except Exception as e:
+                pass
+  
+            if win.winfo_exists(): 
+                win.after(1000, poll)
         
         poll()
 
+    # --- Launch Game Process ---
     def launch_game_process(self, game_id, room_id):
-        path = os.path.join(DOWNLOAD_DIR, self.username, str(game_id))
+        resp = self.service.get_game_details(game_id)
+        if not resp or resp['status'] != 'success':
+            print("[Error] Cannot fetch game type")
+            return
+        
+        game_type = resp['game']['type']
+        
+        # [Fix] 使用絕對路徑
+        game_dir = os.path.join(DOWNLOAD_DIR, self.username, str(game_id))
+        full_script_path = os.path.join(game_dir, 'game.py')
+        
         env = os.environ.copy()
         root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         env["PYTHONPATH"] = root_path + os.pathsep + env.get("PYTHONPATH", "")
-        
-        script_path = 'game.py'
-        
-        if sys.platform == "win32":
-            cmd = f'start cmd /k "{sys.executable} {script_path} {self.username} {room_id}"'
-            subprocess.Popen(cmd, cwd=path, env=env, shell=True)
-        elif sys.platform == "darwin": 
-            cmd = f'''osascript -e 'tell app "Terminal" to do script "{sys.executable} {os.path.join(path, script_path)} {self.username} {room_id}"' '''
-            subprocess.Popen(cmd, cwd=path, env=env, shell=True)
-        else: 
-            cmd = [sys.executable, script_path, self.username, str(room_id)]
+
+        if game_type == 'GUI':
+            cmd = [sys.executable, full_script_path, self.username, str(room_id)]
             try:
-                subprocess.Popen(['x-terminal-emulator', '-e'] + cmd, cwd=path, env=env)
-            except:
+                if sys.platform == "win32":
+                    subprocess.Popen(cmd, cwd=game_dir, env=env, creationflags=0x08000000)
+                else:
+                    subprocess.Popen(cmd, cwd=game_dir, env=env)
+            except Exception as e:
+                print(f"[GUI Launch Error] {e}")
+
+        else: # CLI
+            if sys.platform == "win32":
+                cmd = f'start cmd /c "{sys.executable} {full_script_path} {self.username} {room_id} & pause"'
+                subprocess.Popen(cmd, cwd=game_dir, env=env, shell=True)
+                
+            elif sys.platform == "darwin": 
+                cmd_str = f"{sys.executable} {full_script_path} {self.username} {room_id}; echo; read -p 'Press Enter to exit...'"
+                cmd = f'''osascript -e 'tell app "Terminal" to do script "{cmd_str}"' '''
+                subprocess.Popen(cmd, cwd=game_dir, env=env, shell=True)
+                
+            else: 
+                # [Linux Fix]
+                bash_cmd = f"{sys.executable} {full_script_path} {self.username} {room_id}; echo; echo 'Game Exited. Press Enter...'; read line"
                 try:
-                    subprocess.Popen(['gnome-terminal', '--'] + cmd, cwd=path, env=env)
+                    subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', bash_cmd], cwd=game_dir, env=env)
                 except:
-                    subprocess.Popen(cmd, cwd=path, env=env)
+                    try:
+                        subprocess.Popen(['x-terminal-emulator', '-e', f'bash -c "{bash_cmd}"'], cwd=game_dir, env=env)
+                    except:
+                        subprocess.Popen([sys.executable, full_script_path, self.username, str(room_id)], cwd=game_dir, env=env)
 
 if __name__ == "__main__":
     root = tk.Tk()
