@@ -119,3 +119,19 @@ make player
 1.  當房間人數足夠 (通常為 2 人以上) 時，房主的 **Start Game** 按鈕會亮起。
 2.  房主按下 Start 後，所有玩家的遊戲視窗會自動彈出並連線。 
 3.  **遊戲結束後**，你可以回到遊戲詳情頁面，給予 **1-5 星評分** 並留下評論。
+
+# Error Handle
+# 1\. 遇到找不到module
+如看到prompt:
+```bash
+player_client.py", line 10, in <module>
+    from common.protocol import send_json, recv_json, recv_file
+ModuleNotFoundError: No module named 'common.protocol'; 'common' is not a package
+```
+依照下方指令執行
+```bash
+# 設定當前目錄為 Python 搜尋路徑
+export PYTHONPATH=$(pwd)
+# 然後再跑一次
+make player
+```
