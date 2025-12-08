@@ -139,7 +139,7 @@ class DeveloperApp:
             self.root.destroy()
         except: 
             pass
-
+    # login ====== page 1 =========
     def init_login_ui(self):
         for w in self.root.winfo_children(): w.destroy()
         self.root.configure(bg = COLORS["bg_dark"])
@@ -179,10 +179,11 @@ class DeveloperApp:
         if resp and resp['status'] == 'success':
             self.safe_alert("info", "Success", "Registered! Please login.")
         else:
-            msg = resp['msg'] if resp else "Failed"
+            msg = resp['msg'] if resp else "Register Failed"
             self.safe_alert("error", "Error", msg)
         self.service.close()
 
+    # pure UI
     # --- Main Dashboard ---
     def init_main_ui(self):
         for w in self.root.winfo_children(): w.destroy()
@@ -208,10 +209,12 @@ class DeveloperApp:
         self.content = ttk.Frame(self.root, style="TFrame")
         self.content.pack(side="right", fill="both", expand=True, padx=40, pady=40)
         self.view_my_games()
-
+    # clear
     def clear_content(self):
         for w in self.content.winfo_children(): w.destroy()
 
+
+    # After Login === page 2 =======
     # --- view my hames ---
     def view_my_games(self):
         self.clear_content()
@@ -265,6 +268,7 @@ class DeveloperApp:
 
         self.refresh_table(tree)
 
+    # refresh 
     def refresh_table(self, tree):
         for item in tree.get_children(): tree.delete(item)
         
@@ -297,7 +301,8 @@ class DeveloperApp:
         tk.Label(form, text="Game Name", font=("bold")).pack(anchor="w")
         ent_name = ttk.Entry(form, width=40)
         ent_name.insert(0, default_name)
-        if is_update: ent_name.config(state="disabled")
+        if is_update: 
+            ent_name.config(state="disabled")
         ent_name.pack(anchor="w", pady=(0, 15))
 
         tk.Label(form, text="Description", font=("bold")).pack(anchor="w")
@@ -318,6 +323,8 @@ class DeveloperApp:
         lbl_file.pack(side="left", ipady=5, fill="x", expand=True)
         
         path_var = tk.StringVar()
+
+        # browse 
         def browse():
             f = filedialog.askopenfilename(filetypes=[("Python", "*.py")])
             if f:
@@ -326,6 +333,8 @@ class DeveloperApp:
 
         ttk.Button(file_area, text="Browse", command=browse).pack(side="left", padx=5)
 
+
+        # summit
         def submit():
             if not path_var.get() or not ent_name.get():
                 self.safe_alert("warning", "Incomplete", "Please fill all fields.")

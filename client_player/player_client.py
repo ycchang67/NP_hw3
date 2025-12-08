@@ -188,10 +188,10 @@ class PlayerApp:
         if resp and resp['status'] == 'success':
             messagebox.showinfo("Success", "Registered!")
         else:
-            msg = resp['msg'] if resp else "Failed"
+            msg = resp['msg'] if resp else "Register Failed"
             messagebox.showerror("Failed", msg)
         self.service.close()
-
+    # pure UI ==== page 1 ========
     # --- Main Dashboard ---
     def init_main_ui(self):
         for w in self.root.winfo_children(): w.destroy()
@@ -213,7 +213,7 @@ class PlayerApp:
         self.content.pack(fill="both", expand=True, padx=20, pady=20)
         
         self.view_store()
-
+     # clear
     def clear_content(self):
         for w in self.content.winfo_children(): w.destroy()
 
@@ -247,7 +247,7 @@ class PlayerApp:
         if not os.path.exists(user_path):
             tk.Label(self.content, text="No games downloaded yet.", bg="#f5f5f5").pack(pady=20)
             return
-            
+        # get list game  ==== return socket
         resp = self.service.get_game_list()
         server_available = True
         server_games = []
@@ -371,9 +371,10 @@ class PlayerApp:
                     return
         except:
             return
-
+        # all pass => success join
         self.perform_join(room_id)
-
+    
+    # need to check handle before join room
     def perform_join(self, room_id):
         resp = self.service.join_room(room_id)
         if resp and resp['status'] == 'success':
@@ -431,7 +432,7 @@ class PlayerApp:
                 tk.Label(f, text=f"{r['user']} ({r['rating']}★):", font=("bold")).pack(anchor="w")
                 tk.Label(f, text=r['comment'], wraplength=350, justify="left").pack(anchor="w")
 
-        # Submit Review
+        # Submit Review and review setting
         tk.Label(win, text="Write Review:", font=("bold")).pack(pady=(10,5))
         input_frame = tk.Frame(win)
         input_frame.pack(fill="x", padx=20)
