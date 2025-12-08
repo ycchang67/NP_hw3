@@ -31,6 +31,7 @@ class Game:
         self.root = root
         self.user = user
         self.rid = int(rid)
+        self.root.config(cursor="arrow")
         self.root.title(f"Tic-Tac-Toe - {user}")
         self.root.configure(bg=COLORS["bg"])
         self.center_window(450, 650)

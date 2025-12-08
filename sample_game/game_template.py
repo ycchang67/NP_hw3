@@ -21,7 +21,7 @@ class GameTemplate:
         self.root = root
         self.username = username
         self.room_id = int(room_id)
-        
+        self.root.config(cursor="arrow")
         self.root.title(f"Game Room {self.room_id} - Player: {self.username}")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         

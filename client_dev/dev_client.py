@@ -96,6 +96,7 @@ class DeveloperApp:
         self.root = root_window
         self.root.title("Game Store - Developer Studio")
         self.root.geometry("1000x650")
+        self.root.config(cursor="arrow")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.setup_styles()
         self.service = GameStoreService()
