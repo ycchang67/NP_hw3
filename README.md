@@ -60,6 +60,7 @@ Developer
 如果你想上架遊戲供大家遊玩，請依照以下步驟操作。
 ### 1\. 啟動與登入
 ```bash
+cd hw3
 make dev
 # or python3 client_dev/dev_client.py
 ```
