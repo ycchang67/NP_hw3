@@ -12,7 +12,7 @@ except ImportError:
     print("Error: Cannot find 'common.protocol'.")
     sys.exit(1)
 
-# --- 2. 連線設定 ---
+
 HOST = 'linux2.cs.nycu.edu.tw'
 PORT = 12131
 

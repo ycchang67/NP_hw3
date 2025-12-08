@@ -6,7 +6,6 @@ import sys
 import os
 import random
 
-# --- 自動設定引用路徑 ---
 try:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     from common.protocol import send_json, recv_json

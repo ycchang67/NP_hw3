@@ -299,6 +299,7 @@ class PlayerApp:
             tk.Label(row, text=name, font=("Arial", 12, "bold"), bg="white", width=20, anchor="w").pack(side="left")
             tk.Label(row, text=f"v{local_ver}", bg="white", width=10).pack(side="left")
             
+            # if not newest => update : create room
             if is_outdated:
                 tk.Label(row, text="(Update Available)", fg="orange", bg="white").pack(side="left", padx=5)
                 ttk.Button(row, text="Update Now", style="Update.TButton", 
