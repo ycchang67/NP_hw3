@@ -217,9 +217,20 @@ def handle_client(client_socket, client_address):
                         for player in active_game_sessions[room_id]:
                             if player['socket'] != client_socket:
                                 try:
-                                    send_json(player['socket'], {'type': 'opponent_move', 'index': move_data, 'symbol': move_symbol})
+                                    send_json(player['socket'], {
+                                        'type': 'opponent_move', 
+                                        'index': move_data, 
+                                        'symbol': move_symbol
+                                    })
                                 except:
                                     pass
+                        
+                        if move_symbol == 'WIN':
+                            print(f"[Game] Room {room_id} finished. Removing session.")
+                            del active_game_sessions[room_id]
+                            if room_id in active_rooms:
+                                del active_rooms[room_id]
+
 
             elif command == 'game_over':
                 room_id = int(request['room_id'])

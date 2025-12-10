@@ -2,8 +2,7 @@ import sys
 import os
 import random
 import threading
-import tkinter as tk
-from tkinter import simpledialog, messagebox
+import time
 
 try:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -11,7 +10,6 @@ try:
 except ImportError:
     print("Error: Cannot find 'common.protocol'.")
     sys.exit(1)
-
 
 HOST = 'linux3.cs.nycu.edu.tw'
 PORT = 12131
@@ -55,14 +53,13 @@ class BingoGame:
             for j in range(5):
                 self.board[i][j] = numbers[idx]
                 idx += 1
-        
-
         self.marked[2][2] = True
         self.used_numbers.add(self.board[2][2])
 
     def print_board(self):
-        os.system('cls' if os.name == 'nt' else 'clear')
+        # os.system('cls' if os.name == 'nt' else 'clear')
         
+        print("="*40)
         print(f"\n=== BINGO Board ({self.username}) ===")
         print(f"Room: {self.room_id} | Opponent: {self.opponent_name}")
         print("-------------------------------------")
@@ -80,9 +77,12 @@ class BingoGame:
             print(row_str)
         print("-------------------------------------")
         print(f"Lines: {self.count_lines()}")
-        if self.my_turn and not self.game_over:
+        
+        if self.game_over:
+            print("\n[GAME OVER] Press Enter to return to lobby...")
+        elif self.my_turn:
             print("\n[YOUR TURN] Enter a number to call (1-75): ", end='', flush=True)
-        elif not self.game_over:
+        else:
             print(f"\n[WAITING] Waiting for {self.opponent_name}...", flush=True)
 
     def mark_number(self, num):
@@ -96,12 +96,10 @@ class BingoGame:
 
     def count_lines(self):
         lines = 0
-        # Rows & Cols
         for i in range(5):
             if all(self.marked[i][j] for j in range(5)): lines += 1
             if all(self.marked[j][i] for j in range(5)): lines += 1
         
-        # Diagonals
         if all(self.marked[i][i] for i in range(5)): lines += 1
         if all(self.marked[i][4-i] for i in range(5)): lines += 1
         
@@ -109,7 +107,6 @@ class BingoGame:
 
     def send_action(self, number):
         try:
-
             lines = self.count_lines()
             is_win = (lines >= 3) 
             
@@ -123,9 +120,9 @@ class BingoGame:
             
             if is_win:
                 self.game_over = True
-                print(f"\n\n*** BINGO! You WIN with {lines} lines! ***")
                 self.running = False
-                
+                self.print_board()
+                print(f"\n\n*** BINGO! You WIN with {lines} lines! ***")
         except Exception as e:
             print(f"Send Error: {e}")
 
@@ -147,26 +144,35 @@ class BingoGame:
 
                 elif mtype == 'opponent_move':
                     num = msg['index']
-                    status = msg['symbol'] # WIN or NEXT
+                    status = msg['symbol']
                     
-                    print(f"\nOpponent called: {num}")
-                    self.mark_number(num)
+                    is_hit = self.mark_number(num)
                     self.used_numbers.add(num)
                     
+                    print(f"\nOpponent marked: {num}")
+                    if is_hit:
+                        print(f"{num} is on your board!")
+                    else:
+                        print(f"{num} is NOT on your board.")
+                    # time.sleep(1.5) 
+                    
                     if status == 'WIN':
-                        self.print_board()
-                        print("\n\n[GAME OVER] Opponent Wins! Better luck next time.")
                         self.game_over = True
                         self.running = False
+                        self.print_board()
+                        print("\n\n[GAME OVER] Opponent Wins! Better luck next time.")
+                        if self.my_turn:
+                            print("\n(Press Enter to exit)")
                         break
                     
                     if self.count_lines() >= 3:
-                        self.print_board()
-                        print("\n\n*** BINGO! You also WIN! It's a DRAW! ***")
-
-                        self.send_action(0) # Dummy
                         self.game_over = True
                         self.running = False
+                        self.print_board()
+                        print("\n\n*** BINGO! You also WIN! It's a DRAW! ***")
+                        self.send_action(0)
+                        if self.my_turn:
+                            print("\n(Press Enter to exit)")
                         break
 
                     self.my_turn = True
@@ -174,21 +180,25 @@ class BingoGame:
 
                 elif mtype == 'opponent_left':
                     print("\n\nOpponent left the game.")
+                    self.game_over = True
                     self.running = False
+                    if self.my_turn:
+                        print("\n(Press Enter to exit)")
                     break
 
             except Exception as e:
-                # print(f"Net Loop Err: {e}")
+                self.running = False
                 break
         
         if self.sock: self.sock.close()
-        print("\nGame session ended. Press Enter to exit.")
 
     def input_loop(self):
         while self.running:
             if self.my_turn and not self.game_over:
                 try:
                     user_input = sys.stdin.readline().strip()
+                    
+                    if not self.running: break
                     if not user_input: continue
                     
                     if not user_input.isdigit():
@@ -207,13 +217,15 @@ class BingoGame:
                     self.mark_number(num)
                     self.used_numbers.add(num)
                     self.my_turn = False
-                    self.print_board()
+                    print(f"You marked {num}...")
+
                     self.send_action(num)
+                    self.print_board()
+                    
                     
                 except ValueError:
                     pass
             else:
-                import time
                 time.sleep(0.1)
 
     def start(self):
@@ -228,6 +240,9 @@ class BingoGame:
             self.input_loop()
         except KeyboardInterrupt:
             self.running = False
+        finally:
+            print("\nExiting game...")
+            sys.exit(0)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

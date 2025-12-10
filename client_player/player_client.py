@@ -403,8 +403,7 @@ class PlayerApp:
                 else:
                     self.installed_plugins.add(plugin_id)
                     messagebox.showinfo("System", "Plugin installed successfully.")
-                
-                # 存檔
+        
                 self.save_user_plugins()
                 self.view_plugins() # refresh
                 
@@ -443,7 +442,7 @@ class PlayerApp:
             if resp and resp['status'] == 'success':
                 server_ver = resp['game']['version']
                 if local_ver < server_ver:
-                    ans = messagebox.askyesno("Update Required", "Version outdated. Update now?")
+                    ans = messagebox.askyesno("Update Required", "Version out-of-dated. Update now?")
                     if ans:
                         if self.service.download_game(game_id, game_path):
                             self.perform_join(room_id)
@@ -645,8 +644,6 @@ class PlayerApp:
             return
         
         game_type = resp['game']['type']
-        
-        # [Fix] 使用絕對路徑
         game_dir = os.path.join(DOWNLOAD_DIR, self.username, str(game_id))
         full_script_path = os.path.join(game_dir, 'game.py')
         
@@ -675,7 +672,6 @@ class PlayerApp:
                 subprocess.Popen(cmd, cwd=game_dir, env=env, shell=True)
                 
             else: 
-                # [Linux Fix]
                 bash_cmd = f"{sys.executable} {full_script_path} {self.username} {room_id}; echo; echo 'Game Exited. Press Enter...'; read line"
                 try:
                     subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', bash_cmd], cwd=game_dir, env=env)
